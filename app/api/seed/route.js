@@ -1,11 +1,49 @@
 import connectDB from "@/lib/db";
 import Product from "@/models/product";
+import { GoogleGenAI } from "@google/genai";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export async function GET(req) {
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let seedPromise = null;
+
+async function vectorizeProducts(products) {
+    const batchSize = 20;
+    const embeddings = [];
+
+    for (let start = 0; start < products.length; start += batchSize) {
+        const batch = products.slice(start, start + batchSize);
+        const response = await ai.models.embedContent({
+            model: "gemini-embedding-001",
+            contents: batch.map(
+                (product) => `${product.title} ${product.description} ${product.category}`
+            ),
+        });
+        const batchEmbeddings = response.embeddings;
+
+        if (!Array.isArray(batchEmbeddings) || batchEmbeddings.length !== batch.length) {
+            throw new Error(
+                `Gemini returned ${batchEmbeddings?.length ?? 0} embeddings for batch of ${batch.length} products`
+            );
+        }
+
+        batchEmbeddings.forEach((embedding, index) => {
+            const values = embedding?.values;
+
+            if (!Array.isArray(values) || values.length === 0) {
+                throw new Error(`Gemini returned an empty embedding for product ${start + index + 1}`);
+            }
+
+            embeddings.push(values);
+        });
+    }
+
+    return embeddings;
+}
+
+async function seedProducts() {
     await connectDB();
-    const products = await Product.find();
-    await Product.deleteMany();
-    await Product.insertMany([
+    const products = [
         {
             title: "Blue T-shirt",
             description: "Comfortable cotton blue T-shirt for everyday wear.",
@@ -183,7 +221,7 @@ export async function GET(req) {
         },
         {
             title: "Bean Bag",
-            description: "Comfortable bean bag chair.",
+            description: "Comfortable bean bag chair for relaxing.",
             price: 5600,
             category: "Furniture",
             image: "https://picsum.photos/500/300?random=26",
@@ -204,7 +242,7 @@ export async function GET(req) {
         },
         {
             title: "Blender",
-            description: "High-power kitchen blender.",
+            description: "High-power kitchen blender for smoothies.",
             price: 5400,
             category: "Kitchen",
             image: "https://picsum.photos/500/300?random=29",
@@ -218,14 +256,14 @@ export async function GET(req) {
         },
         {
             title: "Perfume",
-            description: "Long-lasting premium fragrance.",
+            description: "Long-lasting premium fragrance for everyday use.",
             price: 4600,
             category: "Beauty",
             image: "https://picsum.photos/500/300?random=31",
         },
         {
             title: "Face Wash",
-            description: "Gentle daily face cleanser.",
+            description: "Gentle daily face cleanser for fresh skin.",
             price: 850,
             category: "Beauty",
             image: "https://picsum.photos/500/300?random=32",
@@ -239,7 +277,7 @@ export async function GET(req) {
         },
         {
             title: "Electric Toothbrush",
-            description: "Rechargeable electric toothbrush.",
+            description: "Rechargeable electric toothbrush with multiple modes.",
             price: 4400,
             category: "Health",
             image: "https://picsum.photos/500/300?random=34",
@@ -253,7 +291,7 @@ export async function GET(req) {
         },
         {
             title: "Sleeping Bag",
-            description: "Warm sleeping bag for camping.",
+            description: "Warm sleeping bag for camping and hiking.",
             price: 3900,
             category: "Outdoor",
             image: "https://picsum.photos/500/300?random=36",
@@ -274,7 +312,7 @@ export async function GET(req) {
         },
         {
             title: "Graphic Tablet",
-            description: "Digital drawing tablet for designers.",
+            description: "Digital drawing tablet for designers and artists.",
             price: 9800,
             category: "Electronics",
             image: "https://picsum.photos/500/300?random=39",
@@ -285,8 +323,316 @@ export async function GET(req) {
             price: 6700,
             category: "Electronics",
             image: "https://picsum.photos/500/300?random=40",
-        }
-    ]);
+        },
 
-    return Response.json({ message: "Seeded successfully" });
+        // 41–80
+
+        {
+            title: "Gaming Laptop",
+            description: "High-performance laptop designed for gaming and development.",
+            price: 185000,
+            category: "Electronics",
+            image: "https://picsum.photos/500/300?random=41",
+        },
+        {
+            title: "Smartphone",
+            description: "Modern smartphone with a bright display and powerful processor.",
+            price: 65000,
+            category: "Electronics",
+            image: "https://picsum.photos/500/300?random=42",
+        },
+        {
+            title: "Tablet Pro",
+            description: "Slim touchscreen tablet suitable for study and entertainment.",
+            price: 58000,
+            category: "Electronics",
+            image: "https://picsum.photos/500/300?random=43",
+        },
+        {
+            title: "Webcam HD",
+            description: "Full HD webcam for video calls, streaming, and online classes.",
+            price: 4500,
+            category: "Electronics",
+            image: "https://picsum.photos/500/300?random=44",
+        },
+        {
+            title: "Gaming Controller",
+            description: "Wireless controller with ergonomic grips and vibration feedback.",
+            price: 5600,
+            category: "Gaming",
+            image: "https://picsum.photos/500/300?random=45",
+        },
+        {
+            title: "RGB Gaming Headset",
+            description: "Immersive gaming headset with microphone and RGB lighting.",
+            price: 7200,
+            category: "Gaming",
+            image: "https://picsum.photos/500/300?random=46",
+        },
+        {
+            title: "Gaming Keyboard",
+            description: "Fast mechanical gaming keyboard with customizable RGB lighting.",
+            price: 6800,
+            category: "Gaming",
+            image: "https://picsum.photos/500/300?random=47",
+        },
+        {
+            title: "Large Mouse Pad",
+            description: "Extended waterproof mouse pad for gaming and office desks.",
+            price: 1800,
+            category: "Gaming",
+            image: "https://picsum.photos/500/300?random=48",
+        },
+        {
+            title: "Running Shorts",
+            description: "Lightweight breathable shorts designed for running and workouts.",
+            price: 1700,
+            category: "Clothing",
+            image: "https://picsum.photos/500/300?random=49",
+        },
+        {
+            title: "Hoodie",
+            description: "Soft fleece hoodie with a comfortable oversized fit.",
+            price: 3200,
+            category: "Clothing",
+            image: "https://picsum.photos/500/300?random=50",
+        },
+        {
+            title: "Formal Shirt",
+            description: "Classic slim-fit formal shirt for office and professional wear.",
+            price: 2900,
+            category: "Clothing",
+            image: "https://picsum.photos/500/300?random=51",
+        },
+        {
+            title: "Canvas Shoes",
+            description: "Lightweight casual canvas shoes for daily use.",
+            price: 2600,
+            category: "Footwear",
+            image: "https://picsum.photos/500/300?random=52",
+        },
+        {
+            title: "Leather Boots",
+            description: "Durable leather boots with a rugged outdoor design.",
+            price: 7200,
+            category: "Footwear",
+            image: "https://picsum.photos/500/300?random=53",
+        },
+        {
+            title: "Sports Sandals",
+            description: "Comfortable lightweight sandals for outdoor activities.",
+            price: 2300,
+            category: "Footwear",
+            image: "https://picsum.photos/500/300?random=54",
+        },
+        {
+            title: "Travel Duffel Bag",
+            description: "Spacious duffel bag with multiple compartments for travel.",
+            price: 4300,
+            category: "Bags",
+            image: "https://picsum.photos/500/300?random=55",
+        },
+        {
+            title: "Laptop Messenger Bag",
+            description: "Professional messenger bag with a padded laptop sleeve.",
+            price: 3800,
+            category: "Bags",
+            image: "https://picsum.photos/500/300?random=56",
+        },
+        {
+            title: "Crossbody Bag",
+            description: "Compact crossbody bag for everyday essentials.",
+            price: 2100,
+            category: "Bags",
+            image: "https://picsum.photos/500/300?random=57",
+        },
+        {
+            title: "Digital Alarm Clock",
+            description: "Compact digital clock with alarm and temperature display.",
+            price: 1600,
+            category: "Home",
+            image: "https://picsum.photos/500/300?random=58",
+        },
+        {
+            title: "Table Fan",
+            description: "Quiet portable table fan with three speed settings.",
+            price: 2800,
+            category: "Home",
+            image: "https://picsum.photos/500/300?random=59",
+        },
+        {
+            title: "Bedside Lamp",
+            description: "Minimalist bedside lamp with warm ambient lighting.",
+            price: 2200,
+            category: "Home",
+            image: "https://picsum.photos/500/300?random=60",
+        },
+        {
+            title: "Wall Clock",
+            description: "Modern silent wall clock for home or office interiors.",
+            price: 1900,
+            category: "Home",
+            image: "https://picsum.photos/500/300?random=61",
+        },
+        {
+            title: "Office Chair",
+            description: "Ergonomic office chair with adjustable height and lumbar support.",
+            price: 18500,
+            category: "Furniture",
+            image: "https://picsum.photos/500/300?random=62",
+        },
+        {
+            title: "Computer Desk",
+            description: "Spacious minimalist desk for computers and study setups.",
+            price: 12500,
+            category: "Furniture",
+            image: "https://picsum.photos/500/300?random=63",
+        },
+        {
+            title: "Bookshelf",
+            description: "Five-tier wooden bookshelf for books and home decoration.",
+            price: 8500,
+            category: "Furniture",
+            image: "https://picsum.photos/500/300?random=64",
+        },
+        {
+            title: "Desk Organizer",
+            description: "Multi-compartment organizer for stationery and office supplies.",
+            price: 1200,
+            category: "Office",
+            image: "https://picsum.photos/500/300?random=65",
+        },
+        {
+            title: "Notebook Set",
+            description: "Set of three premium ruled notebooks for study and work.",
+            price: 900,
+            category: "Office",
+            image: "https://picsum.photos/500/300?random=66",
+        },
+        {
+            title: "Wireless Keyboard",
+            description: "Slim wireless keyboard with quiet keys and long battery life.",
+            price: 3400,
+            category: "Office",
+            image: "https://picsum.photos/500/300?random=67",
+        },
+        {
+            title: "Stapler Kit",
+            description: "Compact office stapler with staples and remover included.",
+            price: 750,
+            category: "Office",
+            image: "https://picsum.photos/500/300?random=68",
+        },
+        {
+            title: "Rice Cooker",
+            description: "Automatic rice cooker with keep-warm function.",
+            price: 6200,
+            category: "Kitchen",
+            image: "https://picsum.photos/500/300?random=69",
+        },
+        {
+            title: "Coffee Maker",
+            description: "Compact coffee machine for freshly brewed coffee at home.",
+            price: 8900,
+            category: "Kitchen",
+            image: "https://picsum.photos/500/300?random=70",
+        },
+        {
+            title: "Toaster",
+            description: "Two-slice toaster with adjustable browning levels.",
+            price: 3100,
+            category: "Kitchen",
+            image: "https://picsum.photos/500/300?random=71",
+        },
+        {
+            title: "Knife Set",
+            description: "Stainless steel kitchen knife set with storage block.",
+            price: 4500,
+            category: "Kitchen",
+            image: "https://picsum.photos/500/300?random=72",
+        },
+        {
+            title: "Moisturizing Cream",
+            description: "Lightweight daily moisturizer for smooth and hydrated skin.",
+            price: 1450,
+            category: "Beauty",
+            image: "https://picsum.photos/500/300?random=73",
+        },
+        {
+            title: "Sunscreen SPF 50",
+            description: "Lightweight sunscreen with broad-spectrum SPF 50 protection.",
+            price: 1800,
+            category: "Beauty",
+            image: "https://picsum.photos/500/300?random=74",
+        },
+        {
+            title: "Shampoo",
+            description: "Gentle everyday shampoo designed for clean and healthy hair.",
+            price: 1250,
+            category: "Beauty",
+            image: "https://picsum.photos/500/300?random=75",
+        },
+        {
+            title: "Resistance Bands",
+            description: "Set of resistance bands for strength training and home workouts.",
+            price: 2100,
+            category: "Fitness",
+            image: "https://picsum.photos/500/300?random=76",
+        },
+        {
+            title: "Adjustable Dumbbells",
+            description: "Space-saving adjustable dumbbells for home strength training.",
+            price: 9500,
+            category: "Fitness",
+            image: "https://picsum.photos/500/300?random=77",
+        },
+        {
+            title: "Tennis Racket",
+            description: "Lightweight graphite racket designed for recreational tennis.",
+            price: 6200,
+            category: "Sports",
+            image: "https://picsum.photos/500/300?random=78",
+        },
+        {
+            title: "Hiking Backpack",
+            description: "Durable outdoor backpack with hydration and gear compartments.",
+            price: 6800,
+            category: "Outdoor",
+            image: "https://picsum.photos/500/300?random=79",
+        },
+        {
+            title: "Portable Camping Lantern",
+            description: "Rechargeable LED lantern for camping, hiking, and emergencies.",
+            price: 2700,
+            category: "Outdoor",
+            image: "https://picsum.photos/500/300?random=80",
+        },
+    ];
+    const embeddings = await vectorizeProducts(products);
+    const productsWithVectors = products.map((product, index) => ({
+        ...product,
+        embedding: embeddings[index],
+    }));
+
+    await Product.deleteMany();
+    await Product.insertMany(productsWithVectors);
+
+    return Response.json({
+        message: "Seeded successfully",
+        insertedCount: productsWithVectors.length,
+    });
+}
+
+export async function GET() {
+    if (seedPromise) {
+        return seedPromise;
+    }
+
+    seedPromise = seedProducts();
+
+    try {
+        return await seedPromise;
+    } finally {
+        seedPromise = null;
+    }
 }
